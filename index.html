@@ -1,1 +1,564 @@
 
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Motorik Halus - Susun Puzzle Warna</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-image: url('assets/audio/background.jpg');
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            min-height: 100vh;
+            width: 100vw;
+            position: fixed;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            height: 100%;
+        }
+
+        * {
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: none;
+        }
+
+        .puzzle-piece {
+            transition: all 0.3s ease;
+            cursor: grab;
+            user-select: none;
+        }
+
+        .puzzle-piece:active {
+            cursor: grabbing;
+            transform: scale(1.1);
+            z-index: 1000;
+        }
+
+        .puzzle-piece.dragging {
+            opacity: 0.8;
+            transform: rotate(5deg) scale(1.1);
+            z-index: 1000;
+        }
+
+        .drop-zone {
+            transition: all 0.3s ease;
+            border: 3px dashed #cbd5e1;
+        }
+
+        .drop-zone.drag-over {
+            border-color: #3b82f6;
+            background-color: rgba(59, 130, 246, 0.1);
+            transform: scale(1.05);
+        }
+
+        .drop-zone.filled {
+            border-color: #10b981;
+            background-color: rgba(16, 185, 129, 0.1);
+        }
+
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        @keyframes wiggle {
+            0%, 100% {
+                transform: rotate(0deg);
+            }
+            25% {
+                transform: rotate(5deg);
+            }
+            75% {
+                transform: rotate(-5deg);
+            }
+        }
+
+        .success-animation {
+            animation: bounce 0.6s ease-in-out;
+        }
+
+        .wrong-animation {
+            animation: wiggle 0.5s ease-in-out;
+        }
+
+        @keyframes sparkle {
+            0%, 100% {
+                opacity: 0;
+                transform: scale(0) rotate(0deg);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1) rotate(180deg);
+            }
+        }
+
+        .sparkle {
+            animation: sparkle 1s ease-in-out;
+        }
+
+        #instructionModal {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            background-image: url('assets/audio/background.jpg');
+            background-size: cover;
+            background-repeat: no-repeat;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-200 via-pink-100 to-blue-200 h-screen flex flex-col">
+
+    <audio id="backgroundAudio" src="assets/audio/background_music.mp3" autoplay loop></audio>
+
+    <div class="flex-1 flex items-center justify-center px-1 py-1">
+        <div class="max-w-4xl w-full">
+            <div class="text-center mb-2">
+                <h1 class="text-lg font-bold text-purple-800 mb-1">🧩 Susun Puzzle Warna 🎨</h1>
+                <div class="flex justify-center items-center gap-2 text-xs font-semibold mb-2">
+                    <div class="bg-white rounded-full px-2 py-1 shadow-lg">
+                        <span class="text-green-600">Benar: </span>
+                        <span id="correct" class="text-green-800">0</span>
+                    </div>
+                    <div class="bg-white rounded-full px-2 py-1 shadow-lg">
+                        <span class="text-blue-600">Level: </span>
+                        <span id="level" class="text-blue-800">1</span>
+                    </div>
+                    <div class="bg-white rounded-full px-2 py-1 shadow-lg">
+                        <span class="text-orange-600">Waktu: </span>
+                        <span id="timer" class="text-orange-800">05:00</span>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+                <div class="bg-white rounded-lg shadow-xl p-2">
+                    <div class="mb-2 flex flex-col items-center">
+                        <h3 class="text-sm font-bold text-center text-gray-700 mb-1">🎯 Contoh:</h3>
+                        <div id="targetPattern" class="grid gap-1 justify-center">
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <h3 class="text-sm font-bold text-center text-gray-700 mb-1">🧩 Buatmu:</h3>
+                        <div id="puzzleArea" class="grid gap-1 justify-center">
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow-xl p-2">
+                    <div class="flex flex-col items-center">
+                        <h3 class="text-sm font-bold text-center text-gray-700 mb-1">🎨 Pilih Warna:</h3>
+                        <div id="piecesContainer" class="grid grid-cols-3 gap-1 justify-center mb-2">
+                        </div>
+                    </div>
+                    <div class="text-center space-y-1">
+                        <button id="clearBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full shadow-lg transition-all duration-300 w-full text-xs"> 🗑️ Bersihkan </button>
+                        <button id="hintBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-2 rounded-full shadow-lg transition-all duration-300 w-full text-xs"> 💡 Petunjuk </button>
+                    </div>
+                </div>
+            </div>
+            <div class="text-center space-x-1">
+                <button id="startBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105 text-xs"> 🎮 Mulai </button>
+                <button id="pauseBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105 text-xs" disabled> ⏸️ Pause </button>
+                <button id="newPatternBtn" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-1 px-3 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105 text-xs"> 🔄 Pola Baru </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="instructionModal" class="fixed inset-0 flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl p-6 md:p-8 text-center shadow-2xl max-w-sm md:max-w-md w-full">
+            <h2 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-500 to-pink-500 mb-4 animate-pulse">Cara Bermain</h2>
+            <ul class="list-disc list-inside text-left text-sm md:text-base text-gray-700 space-y-2 mb-6 font-semibold">
+                <li class="hover:text-blue-600 transition-colors duration-300">
+                    <span class="font-extrabold">1.</span> Lihat pola warna di bagian <span class="text-purple-600 font-extrabold">"Contoh"</span>.
+                </li>
+                <li class="hover:text-purple-600 transition-colors duration-300">
+                    <span class="font-extrabold">2.</span> Pilih warna dari <span class="text-red-500 font-extrabold">"Pilih Warna"</span> di sebelah kanan.
+                </li>
+                <li class="hover:text-pink-500 transition-colors duration-300">
+                    <span class="font-extrabold">3.</span> <span class="text-green-500 font-extrabold">Tarik dan letakkan</span> warna tersebut di kotak kosong pada <span class="text-blue-500 font-extrabold">"Buatmu"</span>.
+                </li>
+                <li class="hover:text-yellow-500 transition-colors duration-300">
+                    <span class="font-extrabold">4.</span> Selesaikan puzzle sebelum <span class="text-orange-500 font-extrabold">waktu habis</span>!
+                </li>
+            </ul>
+            <button id="closeInstructionBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-all duration-300"> Ayo Mulai! </button>
+            <div class="mt-4 text-xs text-gray-500">
+                <p>Created by: <span class="font-bold text-gray-700">GlowandGrow</span></p>
+                <p>Contact person: <a href="https://wa.me/6289629065679" class="text-blue-500 hover:underline">+6289629065679</a> / Rahma</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-3xl p-8 text-center shadow-2xl transform scale-95 max-w-md">
+            <div class="text-6xl mb-4">🎉</div>
+            <h2 class="text-3xl font-bold text-green-600 mb-2">Luar Biasa!</h2>
+            <p class="text-lg text-gray-700 mb-4">Kamu berhasil menyelesaikan puzzle!</p>
+            <div class="text-sm text-gray-600 mb-4">
+                <p>Waktu: <span id="completionTime" class="font-bold"></span> detik</p>
+                <p>Level: <span id="completionLevel" class="font-bold"></span></p>
+            </div>
+            <button id="nextLevelBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-all duration-300"> Level Selanjutnya 🚀 </button>
+        </div>
+    </div>
+
+    <script>
+        class ColorPuzzleGame {
+            constructor() {
+                this.level = 1;
+                this.correct = 0;
+                this.initialTime = 300;
+                this.timeLeft = this.initialTime;
+                this.gameActive = false;
+                this.timer = null;
+                this.gridSize = 2;
+                this.colors = [
+                    { name: 'merah', class: 'bg-red-500', emoji: '🔴' },
+                    { name: 'biru', class: 'bg-blue-500', emoji: '🔵' },
+                    { name: 'hijau', class: 'bg-green-500', emoji: '🟢' },
+                    { name: 'kuning', class: 'bg-yellow-500', emoji: '🟡' },
+                    { name: 'ungu', class: 'bg-purple-500', emoji: '🟣' },
+                    { name: 'orange', class: 'bg-orange-500', emoji: '🟠' }
+                ];
+                this.targetPattern = [];
+                this.currentPattern = [];
+                this.draggedElement = null;
+                this.selectedColor = null;
+                this.initializeGame();
+                this.showInstructionModal();
+                this.setupEventListeners();
+                this.handleAudio();
+            }
+
+            handleAudio() {
+                const audio = document.getElementById('backgroundAudio');
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        // Autoplay started
+                    }).catch(() => {
+                        // Autoplay failed, show a message or add a user interaction handler
+                        document.addEventListener('click', () => {
+                            if (audio.paused) {
+                                audio.play();
+                            }
+                        }, { once: true });
+                        document.addEventListener('touchstart', () => {
+                            if (audio.paused) {
+                                audio.play();
+                            }
+                        }, { once: true });
+                    });
+                }
+            }
+
+            showInstructionModal() {
+                const instructionModal = document.getElementById('instructionModal');
+                instructionModal.classList.remove('hidden');
+                this.gameActive = false;
+                document.getElementById('startBtn').disabled = true;
+            }
+
+            hideInstructionModal() {
+                const instructionModal = document.getElementById('instructionModal');
+                instructionModal.classList.add('hidden');
+                document.getElementById('startBtn').disabled = false;
+            }
+
+            initializeGame() {
+                this.generateTargetPattern();
+                this.createPuzzleGrid();
+                this.createColorPieces();
+                this.updateDisplay();
+            }
+
+            setupEventListeners() {
+                document.getElementById('startBtn').addEventListener('click', () => this.startGame());
+                document.getElementById('pauseBtn').addEventListener('click', () => this.pauseGame());
+                document.getElementById('newPatternBtn').addEventListener('click', () => this.generateNewPattern());
+                document.getElementById('clearBtn').addEventListener('click', () => this.clearPuzzle());
+                document.getElementById('hintBtn').addEventListener('click', () => this.showHint());
+                document.getElementById('closeInstructionBtn').addEventListener('click', () => {
+                    this.hideInstructionModal();
+                    this.startGame();
+                });
+                
+                // Menangani tombol "Level Selanjutnya" agar tidak memajukan level
+                document.getElementById('nextLevelBtn').addEventListener('click', () => {
+                    document.getElementById('successModal').classList.add('hidden');
+                    alert('Luar biasa! Kamu sudah menyelesaikan semua level yang ada. Selamat!');
+                    this.resetGame();
+                });
+            }
+
+            generateTargetPattern() {
+                this.targetPattern = [];
+                const availableColors = this.colors.slice(0, Math.min(3 + this.level, this.colors.length));
+                for (let i = 0; i < this.gridSize * this.gridSize; i++) {
+                    const randomColor = availableColors[Math.floor(Math.random() * availableColors.length)];
+                    this.targetPattern.push(randomColor);
+                }
+                this.displayTargetPattern();
+            }
+
+            displayTargetPattern() {
+                const container = document.getElementById('targetPattern');
+                container.innerHTML = '';
+                container.style.gridTemplateColumns = `repeat(${this.gridSize}, 1fr)`;
+                this.targetPattern.forEach((color, index) => {
+                    const cell = document.createElement('div');
+                    cell.className = `w-12 h-12 ${color.class} rounded-lg shadow-md flex items-center justify-center text-lg`;
+                    cell.innerHTML = color.emoji;
+                    container.appendChild(cell);
+                });
+            }
+
+            createPuzzleGrid() {
+                const container = document.getElementById('puzzleArea');
+                container.innerHTML = '';
+                container.style.gridTemplateColumns = `repeat(${this.gridSize}, 1fr)`;
+                this.currentPattern = new Array(this.gridSize * this.gridSize).fill(null);
+                for (let i = 0; i < this.gridSize * this.gridSize; i++) {
+                    const dropZone = document.createElement('div');
+                    dropZone.className = 'drop-zone w-12 h-12 rounded-lg flex items-center justify-center text-lg font-bold';
+                    dropZone.dataset.index = i;
+                    this.setupDropZone(dropZone);
+                    container.appendChild(dropZone);
+                }
+            }
+
+            setupDropZone(dropZone) {
+                dropZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    if(this.gameActive) {
+                        dropZone.classList.add('drag-over');
+                    }
+                });
+                dropZone.addEventListener('dragleave', () => {
+                    dropZone.classList.remove('drag-over');
+                });
+                dropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('drag-over');
+                    if (this.draggedElement && this.gameActive) {
+                        const colorData = JSON.parse(this.draggedElement.dataset.color);
+                        const index = parseInt(dropZone.dataset.index);
+                        this.placePiece(dropZone, colorData, index);
+                        this.checkPattern();
+                    }
+                });
+                // Touch support for mobile
+                dropZone.addEventListener('click', () => {
+                    if (this.selectedColor && this.gameActive) {
+                        const index = parseInt(dropZone.dataset.index);
+                        this.placePiece(dropZone, this.selectedColor, index);
+                        this.checkPattern();
+                    }
+                });
+            }
+
+            placePiece(dropZone, colorData, index) {
+                dropZone.className = `drop-zone filled w-12 h-12 ${colorData.class} rounded-lg flex items-center justify-center text-lg font-bold shadow-lg`;
+                dropZone.innerHTML = colorData.emoji;
+                this.currentPattern[index] = colorData;
+                dropZone.classList.add('success-animation');
+                setTimeout(() => dropZone.classList.remove('success-animation'), 600);
+            }
+
+            createColorPieces() {
+                const container = document.getElementById('piecesContainer');
+                container.innerHTML = '';
+                const availableColors = this.colors.slice(0, Math.min(3 + this.level, this.colors.length));
+                availableColors.forEach(color => {
+                    const piece = document.createElement('div');
+                    piece.className = `puzzle-piece w-10 h-10 ${color.class} rounded-lg shadow-lg flex items-center justify-center text-sm font-bold cursor-pointer hover:scale-110`;
+                    piece.innerHTML = color.emoji;
+                    piece.draggable = true;
+                    piece.dataset.color = JSON.stringify(color);
+                    piece.addEventListener('dragstart', (e) => {
+                        if (this.gameActive) {
+                            this.draggedElement = piece;
+                            piece.classList.add('dragging');
+                        }
+                    });
+                    piece.addEventListener('dragend', () => {
+                        piece.classList.remove('dragging');
+                        this.draggedElement = null;
+                    });
+                    piece.addEventListener('click', () => {
+                        if (this.gameActive) {
+                            document.querySelectorAll('.puzzle-piece').forEach(p => p.classList.remove('ring-4', 'ring-blue-400'));
+                            piece.classList.add('ring-4', 'ring-blue-400');
+                            this.selectedColor = color;
+                        }
+                    });
+                    container.appendChild(piece);
+                });
+            }
+
+            checkPattern() {
+                let matches = 0;
+                let allFilled = true;
+                for (let i = 0; i < this.currentPattern.length; i++) {
+                    if (!this.currentPattern[i]) {
+                        allFilled = false;
+                        continue;
+                    }
+                    if (this.currentPattern[i].name === this.targetPattern[i].name) {
+                        matches++;
+                    }
+                }
+                if (allFilled && matches === this.targetPattern.length) {
+                    this.completePuzzle();
+                }
+            }
+
+            completePuzzle() {
+                this.gameActive = false;
+                clearInterval(this.timer);
+                this.correct++;
+                document.getElementById('completionTime').textContent = this.initialTime - this.timeLeft;
+                document.getElementById('completionLevel').textContent = this.level;
+                document.getElementById('successModal').classList.remove('hidden');
+                this.createSparkleEffects();
+                this.updateDisplay();
+            }
+
+            createSparkleEffects() {
+                for (let i = 0; i < 10; i++) {
+                    setTimeout(() => {
+                        const sparkle = document.createElement('div');
+                        sparkle.className = 'sparkle fixed pointer-events-none text-3xl z-50';
+                        sparkle.innerHTML = '✨';
+                        sparkle.style.left = Math.random() * window.innerWidth + 'px';
+                        sparkle.style.top = Math.random() * window.innerHeight + 'px';
+                        document.body.appendChild(sparkle);
+                        setTimeout(() => sparkle.remove(), 1000);
+                    }, i * 100);
+                }
+            }
+
+            startGame() {
+                if(this.gameActive) return;
+                this.gameActive = true;
+                this.timeLeft = this.initialTime;
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('pauseBtn').disabled = false;
+                this.timer = setInterval(() => {
+                    this.timeLeft--;
+                    this.updateDisplay();
+                    if (this.timeLeft <= 0) {
+                        this.gameOver();
+                    }
+                }, 1000);
+            }
+
+            pauseGame() {
+                this.gameActive = false;
+                clearInterval(this.timer);
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('pauseBtn').disabled = true;
+            }
+
+            gameOver() {
+                this.gameActive = false;
+                clearInterval(this.timer);
+                alert('Waktu habis! Coba lagi ya! 😊');
+                this.resetGame();
+            }
+
+            resetGame() {
+                this.gameActive = false;
+                this.timeLeft = this.initialTime;
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('pauseBtn').disabled = true;
+                this.clearPuzzle();
+                this.updateDisplay();
+            }
+
+            clearPuzzle() {
+                this.currentPattern = new Array(this.gridSize * this.gridSize).fill(null);
+                const dropZones = document.querySelectorAll('.drop-zone');
+                dropZones.forEach(zone => {
+                    zone.className = 'drop-zone w-12 h-12 rounded-lg flex items-center justify-center text-lg font-bold';
+                    zone.innerHTML = '';
+                });
+            }
+
+            showHint() {
+                if (!this.gameActive) return;
+                const emptyIndex = this.currentPattern.findIndex(piece => piece === null);
+                if (emptyIndex !== -1) {
+                    const targetColor = this.targetPattern[emptyIndex];
+                    const dropZone = document.querySelector(`[data-index="${emptyIndex}"]`);
+                    const colorPieces = document.querySelectorAll('.puzzle-piece');
+                    colorPieces.forEach(piece => {
+                        const pieceColor = JSON.parse(piece.dataset.color);
+                        if (pieceColor.name === targetColor.name) {
+                            piece.classList.add('ring-4', 'ring-yellow-400');
+                            setTimeout(() => piece.classList.remove('ring-4', 'ring-yellow-400'), 2000);
+                        }
+                    });
+                    dropZone.classList.add('ring-4', 'ring-yellow-400');
+                    setTimeout(() => dropZone.classList.remove('ring-4', 'ring-yellow-400'), 2000);
+                }
+            }
+
+            generateNewPattern() {
+                this.generateTargetPattern();
+                this.clearPuzzle();
+            }
+            
+            // Fungsi nextLevel() dinonaktifkan untuk membatasi permainan di level 1
+            nextLevel() {
+                // Tidak ada tindakan yang diambil untuk mencegah transisi ke level selanjutnya
+                // Semua logika permainan tetap dipertahankan
+            }
+
+            updateDisplay() {
+                const minutes = Math.floor(this.timeLeft / 60);
+                const seconds = this.timeLeft % 60;
+                const formattedMinutes = String(minutes).padStart(2, '0');
+                const formattedSeconds = String(seconds).padStart(2, '0');
+                document.getElementById('correct').textContent = this.correct;
+                document.getElementById('level').textContent = this.level;
+                document.getElementById('timer').textContent = `${formattedMinutes}:${formattedSeconds}`;
+            }
+        }
+
+        window.addEventListener('load', () => {
+            const game = new ColorPuzzleGame();
+            document.addEventListener('touchmove', function(e) {
+                e.preventDefault();
+            }, { passive: false });
+            document.addEventListener('wheel', function(e) {
+                e.preventDefault();
+            }, { passive: false });
+            document.addEventListener('keydown', function(e) {
+                if([32, 33, 34, 35, 36, 37, 38, 39, 40].indexOf(e.keyCode) > -1) {
+                    e.preventDefault();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+
